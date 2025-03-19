@@ -144,10 +144,10 @@ public class ElevatorController {
                     } else {
                         elevatorDirection = Direction.DOWN;
                     }
-                } else {
-                    //If there are no more elevator buttons pressed, or floor requests, the elevator remains idle.
-                    elevatorDirection = Direction.IDLE;
-                }
+                } 
+            } else {
+                //If there are no more elevator buttons pressed, or floor requests, the elevator remains idle.
+                elevatorDirection = Direction.IDLE;
             }
         }
 
