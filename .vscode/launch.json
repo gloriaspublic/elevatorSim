@@ -15,7 +15,8 @@
             "name": "ElevatorController",
             "request": "launch",
             "mainClass": "ElevatorController",
-            "projectName": "elevatorSim_d55c67e5"
+            "projectName": "elevatorSim_d55c67e5",
+            "vmArgs": "-ea"
         },
         {
             "type": "java",

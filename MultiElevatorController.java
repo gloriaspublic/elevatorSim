@@ -1,11 +1,13 @@
 import java.util.*;
 import java.util.concurrent.PriorityBlockingQueue;
 
+
 public class MultiElevatorController {
 
     private static final int NUM_FLOORS = 10;
     private static final int BOTTOM_FLOOR = 1;
     private static final int NUM_ELEVATORS = 2;
+    private static final int SIM_TIME = 25;
 
     private enum Direction {
         UP,
@@ -71,7 +73,7 @@ public class MultiElevatorController {
 
         public void addRequest(Request request) {
             el_floorRequestsQueue.add(request);
-            System.out.println("Event: Elevator: " + elevatorID + " was assigned request: " + request.floor
+            System.out.println("Info: Elevator: " + elevatorID + " was assigned request: " + request.floor
                     + request.direction + " with destination: " + request.destination);
             if (direction == Direction.IDLE) {
                 updateElevatorDirection();
@@ -103,8 +105,7 @@ public class MultiElevatorController {
         }
 
         private void processElevatorRequests(int currentTime) {
-            // Track the order of floors visited for testing
-            floorsVisited.add(currentFloor);
+
 
             // Check if any passengers need to get off at the current floor
             letPassengersExit();
@@ -135,10 +136,20 @@ public class MultiElevatorController {
             }
         }
 
+        /*
+         * This is solely used for unit testing the code
+         */
+        private void addFloorToVisitedList(){
+            if(floorsVisited.size() == 0 || floorsVisited.getLast() != currentFloor){
+                floorsVisited.add(currentFloor);
+            }
+        }
+
         private void letPassengersExit() {
             if (elevatorButtonsPressed.contains(currentFloor)) {
+                addFloorToVisitedList();
                 System.out.println(
-                        "Action: Elevator: " + elevatorID + " Passenger(s) exiting elevator on floor: " + currentFloor);
+                        "Info: Elevator: " + elevatorID + " Passenger(s) exiting elevator on floor: " + currentFloor);
                 elevatorButtonsPressed.remove(currentFloor);
             }
         }
@@ -148,7 +159,8 @@ public class MultiElevatorController {
             while (iterator.hasNext()) {
                 Request request = iterator.next();
                 if (request.floor == currentFloor) {
-                    System.out.println("Action: Elevator: " + elevatorID + " Passenger(s) entering elevator on floor: "
+                    addFloorToVisitedList();
+                    System.out.println("Info: Elevator: " + elevatorID + " Passenger(s) entering elevator on floor: "
                             + currentFloor);
                     handleElevatorButtonPress(request.destination);
                     iterator.remove();
@@ -293,48 +305,48 @@ public class MultiElevatorController {
     }
 
     public Elevator getBestElevator(Request request) {
-        // If the elevator already has a request for the same floor in the same
-        // direction, return that elevator
-        // Otherwise, return the elevator that has the least number of total requests
-        // and at is either IDLE or going in the same direction as the request
         Elevator bestElevator = null;
         int minRequests = Integer.MAX_VALUE;
 
         for (Elevator elevator : elevators) {
-            // If the request's direction is up and the elevator is going up
-            // with the cuurent floor is less than the request floor OR the elevator is idle
-            if (request.direction == Direction.UP
-                    && ((elevator.getDirection() == request.direction
-                            && elevator.getCurrentFloor() <= request.floor)
-                            || elevator.getDirection() == Direction.IDLE)) {
+            if (isElevatorSuitableForRequest(elevator, request)) {
                 int totalRequests = elevator.numOfTotalRequests();
                 if (totalRequests < minRequests) {
                     minRequests = totalRequests;
                     bestElevator = elevator;
                 }
             }
-            // If the request's direction is down and the elevator is either idle or going
-            // down and the cuurent floor is above the requested floor
-            else if (request.direction == Direction.DOWN
-                    && ((elevator.getDirection() == request.direction
-                            && elevator.getCurrentFloor() >= request.floor)
-                            || elevator.getDirection() == Direction.IDLE)) {
-                int totalRequests = elevator.numOfTotalRequests();
-                if (totalRequests < minRequests) {
-                    minRequests = totalRequests;
-                    bestElevator = elevator;
-                }
-            }
-            // loop through the requests for this elevator
-            for (Request r : elevator.el_floorRequestsQueue) {
-                // if this elev has a request for the same floor in the same direction, we will
-                // use this elevator
-                if (r.floor == request.floor && r.direction == request.direction) {
-                    return elevator;
-                }
+            if (hasMatchingRequest(elevator, request)) {
+                return elevator;
             }
         }
         return bestElevator;
+    }
+
+    /*
+     * An elevator is suitable for a request if it is in the idle state or it is moving towards the request
+     */
+    private boolean isElevatorSuitableForRequest(Elevator elevator, Request request) {
+        if(elevator.getDirection() == Direction.IDLE) {
+            return true;
+        }
+        if (request.direction == Direction.UP) {
+            return (elevator.getDirection() == request.direction && elevator.getCurrentFloor() <= request.floor);
+                    
+        } else if (request.direction == Direction.DOWN) {
+            return (elevator.getDirection() == request.direction && elevator.getCurrentFloor() >= request.floor);
+                    
+        }
+        return false;
+    }
+
+    private boolean hasMatchingRequest(Elevator elevator, Request request) {
+        for (Request r : elevator.el_floorRequestsQueue) {
+            if (r.floor == request.floor && r.direction == request.direction) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void processRequests() {
@@ -374,12 +386,12 @@ public class MultiElevatorController {
      * Test Case 0: Elevator starts on floor 1.
      * Time 0: 2 users on Floor 1 hit UP to go to floors 10 and 3.
      * Time 1: user on Floor 3 hits DOWN to go to floor 2.
-     * Expected result: Elevator 1 goes to floors 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
-     * and Elevator 2 goes to floors 1, 2, 3, 2
+     * Expected result: Elevator 0 goes to floors 1 -> 3 -> 10
+     * and Elevator 1 goes to floors  3 -> 2
      */
     public static void testCase0() {
 
-        System.out.println("START TEST CASE 0:");
+        System.out.println("START TEST CASE 0:--------------------------------------------------------------------------------------------------");
         MultiElevatorController controller = new MultiElevatorController();
         controller.initializeVariables(1);
         Map<Integer, List<Request>> mapOfTimesToRequest = new HashMap<>();
@@ -389,15 +401,15 @@ public class MultiElevatorController {
         mapOfTimesToRequest.put(1,
                 Arrays.asList(new Request(3, Direction.DOWN, 2, 1)));
         ArrayList<Integer> expectedFloorsVisitedE1 = new ArrayList<>(
-                Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+                Arrays.asList(1, 3, 10));
         ArrayList<Integer> expectedFloorsVisitedE2 = new ArrayList<>(
-                Arrays.asList(1, 1, 2, 3, 2, 2, 2, 2, 2, 2));
-        controller.runSimulation(mapOfTimesToRequest, expectedFloorsVisitedE1.size());
+                Arrays.asList(3, 2));
+        controller.runSimulation(mapOfTimesToRequest, SIM_TIME);
         ArrayList<Integer> floorsVisitedE1 = controller.elevators.get(0).getFloorsVisited();
         ArrayList<Integer> floorsVisitedE2 = controller.elevators.get(1).getFloorsVisited();
         assert floorsVisitedE1.equals(expectedFloorsVisitedE1);
         assert floorsVisitedE2.equals(expectedFloorsVisitedE2);
-        System.out.println("END TEST CASE 0:");
+        System.out.println("END TEST CASE 0:--------------------------------------------------------------------------------------------------");
 
     }
 
@@ -405,11 +417,11 @@ public class MultiElevatorController {
      * Test Case 1: Elevator starts on floor 10.
      * Time 0: 3 users on Floor 10 hit Down to go to floors 1, 3, and 4.
      * Time 1: user on Floor 3 hits Up to go to floor 4.
-     * Expected result: Elevator 1 goes to floors 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
-     * and Elevator 2 goes to floors 1, 2, 3, 2
+     * Expected result: Elevator 0 goes to floors 10 -> 4 -> 3 -> 1.
+     * and Elevator 1 goes to floors 3 -> 4
      */
     public static void testCase1() {
-        System.out.println("START TEST CASE 1:");
+        System.out.println("START TEST CASE 1:--------------------------------------------------------------------------------------------------");
         MultiElevatorController controller = new MultiElevatorController();
         controller.initializeVariables(10);
         Map<Integer, List<Request>> mapOfTimesToRequest = new HashMap<>();
@@ -421,16 +433,16 @@ public class MultiElevatorController {
                 Arrays.asList(new Request(3, Direction.UP, 4, 1)));
 
         ArrayList<Integer> expectedFloorsVisitedE1 = new ArrayList<>(
-                Arrays.asList(10, 9, 8, 7, 6, 5, 4, 3, 2, 1));
+                Arrays.asList(10, 4, 3, 1));
         ArrayList<Integer> expectedFloorsVisitedE2 = new ArrayList<>(
-                Arrays.asList(10, 10, 9, 8, 7, 6, 5, 4, 3, 4));
-        controller.runSimulation(mapOfTimesToRequest, expectedFloorsVisitedE1.size());
+                Arrays.asList(3, 4));
+        controller.runSimulation(mapOfTimesToRequest, SIM_TIME);
         ArrayList<Integer> floorsVisitedE1 = controller.elevators.get(0).getFloorsVisited();
         ArrayList<Integer> floorsVisitedE2 = controller.elevators.get(1).getFloorsVisited();
         assert floorsVisitedE1.equals(expectedFloorsVisitedE1);
         assert floorsVisitedE2.equals(expectedFloorsVisitedE2);
 
-        System.out.println("END TEST CASE 1");
+        System.out.println("END TEST CASE 1:--------------------------------------------------------------------------------------------------");
     }
 
     /*
@@ -439,10 +451,11 @@ public class MultiElevatorController {
      * to go to 10
      * Time 0: User on Floor 3 presses UP to go to 4 and User on Floor 3 presses
      * DOWN to go to 2.
-     * Expected sequence of floors visited: 7 -> 8 -> 10 -> 3 -> 2 -> 4.
+     * Expected result, Elevator 0: 8 -> 3 -> 2 
+     * Elevator 1: 7 -> 10 -> 3 -> 4.
      */
     public static void testCase2() {
-        System.out.println("START TEST CASE 2:");
+        System.out.println("START TEST CASE 2:--------------------------------------------------------------------------------------------------");
         MultiElevatorController controller = new MultiElevatorController();
         controller.initializeVariables(5);
         Map<Integer, List<Request>> mapOfTimesToRequest = new HashMap<>();
@@ -453,25 +466,26 @@ public class MultiElevatorController {
                 new Request(3, Direction.DOWN, 2, 0)));
 
         ArrayList<Integer> expectedFloorsVisitedE1 = new ArrayList<>(
-                Arrays.asList(5, 6, 7, 8, 7, 6, 5, 4, 3, 2, 2, 2));
+                Arrays.asList( 8, 3, 2));
         ArrayList<Integer> expectedFloorsVisitedE2 = new ArrayList<>(
-                Arrays.asList(5, 6, 7, 8, 9, 10, 10, 9, 8, 7, 6, 5));
-        controller.runSimulation(mapOfTimesToRequest, expectedFloorsVisitedE1.size());
+                Arrays.asList(7, 10, 3, 4));
+        controller.runSimulation(mapOfTimesToRequest, SIM_TIME);
         ArrayList<Integer> floorsVisitedE1 = controller.elevators.get(0).getFloorsVisited();
         ArrayList<Integer> floorsVisitedE2 = controller.elevators.get(1).getFloorsVisited();
         assert floorsVisitedE1.equals(expectedFloorsVisitedE1);
         assert floorsVisitedE2.equals(expectedFloorsVisitedE2);
-        System.out.println("END TEST CASE 2");
+        System.out.println("END TEST CASE 2--------------------------------------------------------------------------------------------------");
     }
 
     /*
      * Test Case 3: Elevator starts on floor 1,
      * Time 0: User on Floor 3 presses Down to go to 2
      * Time 1: User on Floor 10 presses Down to go to 1.
-     * Elevator should go to floor 3, then 10, then 2, then 1.
+     * Expected Results: Elevator 0: 3 -> 2
+     * Elevator 1: 10 -> 1
      */
     public static void testCase3() {
-        System.out.println("START TEST CASE 3:");
+        System.out.println("START TEST CASE 3:--------------------------------------------------------------------------------------------------");
         MultiElevatorController controller = new MultiElevatorController();
         controller.initializeVariables(1);
         Map<Integer, List<Request>> mapOfTimesToRequest = new HashMap<>();
@@ -481,15 +495,15 @@ public class MultiElevatorController {
                 new Request(10, Direction.DOWN, 1, 1)));
 
         ArrayList<Integer> expectedFloorsVisitedE1 = new ArrayList<>(
-                Arrays.asList(1, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2));
+                Arrays.asList(3, 2));
         ArrayList<Integer> expectedFloorsVisitedE2 = new ArrayList<>(
-                Arrays.asList(1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1));
-        controller.runSimulation(mapOfTimesToRequest, expectedFloorsVisitedE2.size());
+                Arrays.asList(10, 1));
+        controller.runSimulation(mapOfTimesToRequest, SIM_TIME);
         ArrayList<Integer> floorsVisitedE1 = controller.elevators.get(0).getFloorsVisited();
         ArrayList<Integer> floorsVisitedE2 = controller.elevators.get(1).getFloorsVisited();
         assert floorsVisitedE1.equals(expectedFloorsVisitedE1);
         assert floorsVisitedE2.equals(expectedFloorsVisitedE2);
-        System.out.println("END TEST CASE 3");
+        System.out.println("END TEST CASE 3:--------------------------------------------------------------------------------------------------");
     }
 
     /*
@@ -498,10 +512,11 @@ public class MultiElevatorController {
      * Time 0: User on Floor 3 presses Down to go to 2
      * Time 0: User on Floor 1 presses Up to go to 3
      * Time 1: User on Floor 2 presses Up to to 4
-     * Elevator should go to floor 1, 2, 3, 4, 5, 8, 2
+     * Expected Result: Elevtor 0: 2 -> 3 -> 4 -> 2
+     * Elevator 1: 1 -> 3 -> 5 ->8
      */
     public static void testCase4() {
-        System.out.println("START TEST CASE 4:");
+        System.out.println("START TEST CASE 4:--------------------------------------------------------------------------------------------------");
         MultiElevatorController controller = new MultiElevatorController();
         controller.initializeVariables(1);
         Map<Integer, List<Request>> mapOfTimesToRequest = new HashMap<>();
@@ -512,16 +527,81 @@ public class MultiElevatorController {
         mapOfTimesToRequest.put(1, Arrays.asList(
                 new Request(2, Direction.UP, 4, 1)));
         ArrayList<Integer> expectedFloorsVisitedE1 = new ArrayList<>(
-                Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8));
+                Arrays.asList(1, 3, 5, 8));
         ArrayList<Integer> expectedFloorsVisitedE2 = new ArrayList<>(
-                Arrays.asList(1, 2, 3, 4, 3, 2, 2, 2));
-        controller.runSimulation(mapOfTimesToRequest, expectedFloorsVisitedE1.size());
+                Arrays.asList(2, 3, 4, 2));
+        controller.runSimulation(mapOfTimesToRequest, SIM_TIME);
         ArrayList<Integer> floorsVisitedE1 = controller.elevators.get(0).getFloorsVisited();
         ArrayList<Integer> floorsVisitedE2 = controller.elevators.get(1).getFloorsVisited();
         assert floorsVisitedE1.equals(expectedFloorsVisitedE1);
         assert floorsVisitedE2.equals(expectedFloorsVisitedE2);
-        System.out.println("END TEST CASE 4");
+        System.out.println("END TEST CASE 4:--------------------------------------------------------------------------------------------------");
     }
+
+    /* Test Case 5: 
+     * Elevator 0 starts at floor 1, IDLE
+     * Elevator 1 starts at floor 10, IDLE
+     * Time 0: Requests are made from floors 2, 3, 4, 5, 6, 7 (all UP to floor 10)
+     * Expected: Elevator 0: 2 -> 4 -> 5 -> 6 -> 7 -> 10
+     * Elevator 1: 3 -> 10
+     */
+    public static void testCase5() {
+        System.out.println("START TEST CASE 5:--------------------------------------------------------------------------------------------------");
+        MultiElevatorController controller = new MultiElevatorController();
+        controller.initializeVariables(1);
+        controller.elevators.get(1).currentFloor = 10;
+        Map<Integer, List<Request>> mapOfTimesToRequest = new HashMap<>();
+        mapOfTimesToRequest.put(0, Arrays.asList(
+                new Request(2, Direction.UP, 10, 0),
+                new Request(3, Direction.UP, 10, 0),
+                new Request(4, Direction.UP, 10, 0),
+                new Request(5, Direction.UP, 10, 0),
+                new Request(6, Direction.UP, 10, 0),
+                new Request(7, Direction.UP, 10, 0)));
+        ArrayList<Integer> expectedFloorsVisitedE1 = new ArrayList<>(
+                Arrays.asList(2, 4, 5, 6, 7, 10));
+        ArrayList<Integer> expectedFloorsVisitedE2 = new ArrayList<>(
+                Arrays.asList(3, 10));
+        controller.runSimulation(mapOfTimesToRequest, SIM_TIME);
+        ArrayList<Integer> floorsVisitedE1 = controller.elevators.get(0).getFloorsVisited();
+        ArrayList<Integer> floorsVisitedE2 = controller.elevators.get(1).getFloorsVisited();
+        assert floorsVisitedE1.equals(expectedFloorsVisitedE1);
+        assert floorsVisitedE2.equals(expectedFloorsVisitedE2);
+        System.out.println("END TEST CASE 5--------------------------------------------------------------------------------------------------");
+    }
+
+    /*
+     * Test Case 6
+     * Elevator 0: starts at floor 10
+     * Elevator 1: starts at floor 1
+     * Time 0: Requests are made from floors 9, 8, 7, 6, 5, 4 (all DOWN to floor 1).
+     * 
+     */
+    public static void testCase6() {
+        System.out.println("START TEST CASE 6:--------------------------------------------------------------------------------------------------");
+        MultiElevatorController controller = new MultiElevatorController();
+        controller.initializeVariables(10);
+        controller.elevators.get(1).currentFloor = 1;
+        Map<Integer, List<Request>> mapOfTimesToRequest = new HashMap<>();
+        mapOfTimesToRequest.put(0, Arrays.asList(
+                new Request(9, Direction.DOWN, 1, 0),
+                new Request(8, Direction.DOWN, 1, 0),
+                new Request(7, Direction.DOWN, 1, 0),
+                new Request(6, Direction.DOWN, 1, 0),
+                new Request(5, Direction.DOWN, 1, 0),
+                new Request(4, Direction.DOWN, 1, 0)));
+        ArrayList<Integer> expectedFloorsVisitedE1 = new ArrayList<>(
+                Arrays.asList(9, 7, 6, 5, 4, 1));
+        ArrayList<Integer> expectedFloorsVisitedE2 = new ArrayList<>(
+                Arrays.asList(8, 1));
+        controller.runSimulation(mapOfTimesToRequest, SIM_TIME);
+        ArrayList<Integer> floorsVisitedE1 = controller.elevators.get(0).getFloorsVisited();
+        ArrayList<Integer> floorsVisitedE2 = controller.elevators.get(1).getFloorsVisited();
+        assert floorsVisitedE1.equals(expectedFloorsVisitedE1);
+        assert floorsVisitedE2.equals(expectedFloorsVisitedE2);
+        System.out.println("END TEST CASE 6--------------------------------------------------------------------------------------------------");
+    }
+
 
     public static void main(String[] args) {
         testCase0();
@@ -529,5 +609,7 @@ public class MultiElevatorController {
         testCase2();
         testCase3();
         testCase4();
+        testCase5();
+        testCase6();
     }
 }
