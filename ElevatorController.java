@@ -1,6 +1,10 @@
 import java.util.*;
 import java.util.concurrent.PriorityBlockingQueue;
 
+/**
+ * This class models a basic elevator controller that is deciding where to move a single
+ * elevator car based on UP/DOWN buttons pushed on a floor and elevator buttons pushed within the elevator.
+ */
 public class ElevatorController {
 
     private static final int NUM_FLOORS = 10;
